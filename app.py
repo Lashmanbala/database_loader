@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import dotenv
 import sqlalchemy
+import json
 
 dotenv.load_dotenv()
 
@@ -31,3 +32,12 @@ with engine.connect() as connection:
 
 # Print the result
 print(databases_df)
+
+schema = json.load(open('data/retail_db/schemas.json'))
+
+def get_column_names(schema,ds_name):
+    clm_details = schema[ds_name]
+    clm_names = sorted(clm_details, key= lambda col : col['column_position'])
+    return [col['column_name'] for col in clm_names]
+
+print(get_column_names(schema,'departments'))
