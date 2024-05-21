@@ -3,6 +3,7 @@ import os
 import dotenv
 import sqlalchemy
 import json
+import glob
 
 dotenv.load_dotenv()
 
@@ -12,41 +13,44 @@ DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
 DB_NAME = os.getenv('DB_NAME')
 
-conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
-db_conn_engine = sqlalchemy.create_engine(conn_uri)
-connection = db_conn_engine.connect()
-
-#result1 = connection.execute(sqlalchemy.text('CREATE DATABASE retail_db'))
-
-
-schema = json.load(open('data/retail_db/schemas.json'))
 
 def get_column_names(schema,ds_name):
     clm_details = schema[ds_name]
     clm_names = sorted(clm_details, key= lambda col : col['column_position'])
     return [col['column_name'] for col in clm_names]
 
-columns = get_column_names(schema, 'orders')
+def read_csv(file, schema):
+    file_path_list = file.split('/')
+    ds_name = file_path_list[-2]
+    columns =get_column_names(schema, ds_name)
+    df_reader = pd.read_csv(file,names=columns,chunksize=10000)
+    return df_reader
 
-df_reader = pd.read_csv(
-    'data/retail_db/orders/part-00000',
-    names=columns,
-    chunksize=10000
-)
+def to_sql(df, db_conn_engine, ds_name):
+    df.to_sql(ds_name, 
+              db_conn_engine, 
+              if_exists='append', 
+              index=False)
 
-try:
-    for idx, df in enumerate(df_reader):
-        print(f'chunk size of chunk {idx} is {df.shape}')
-        df.to_sql(
-            'orders',
-            db_conn_engine, 
-            if_exists='append', 
-            index=False        # df has indecx in it. It shd be set to false. otherwise index'll be inserted as a column
-        )
-        print('succesfully created a table')
-except Exception as e:
-    print(e)
+def db_loader(ds_name):
+    schema = json.load(open('data/retail_db/schemas.json'))
+    files = glob.glob(f'data/retail_db/{ds_name}/part-*')
+
+    conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+    db_conn_engine = sqlalchemy.create_engine(conn_uri)
+    for file in files:
+        df_reader = read_csv(file, schema)
+
+        for idx, df in enumerate(df_reader):
+            print(f'processing chunk {idx} of {ds_name}')
+            to_sql(df, db_conn_engine, ds_name)
+
+db_loader('orders')
+
+'''conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+db_conn_engine = sqlalchemy.create_engine(conn_uri)
+connection = db_conn_engine.connect()
 
 result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
 databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
-print(databases_df)
+print(databases_df)'''
