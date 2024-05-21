@@ -18,10 +18,6 @@ connection = engine.connect()
 
 #result1 = connection.execute(sqlalchemy.text('CREATE DATABASE retail_db'))
 
-result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
-databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
-print(databases_df)
-
 
 schema = json.load(open('data/retail_db/schemas.json'))
 
@@ -33,9 +29,23 @@ def get_column_names(schema,ds_name):
 columns = get_column_names(schema, 'orders')
 
 df = pd.read_csv(
-    'retail_db/orders/part-00000',
+    'data/retail_db/orders/part-00000',
     names=columns
 )
 
 print(df)
-#print(get_column_names(schema,'departments'))
+
+try:
+    df.to_sql(
+        'orders',
+        con=engine, 
+        if_exists='replace', 
+        index=False        # df has indecx in it. It shd be set to false. otherwise index'll be inserted as a column
+    )
+    print('succesfully created a table')
+except Exception as e:
+    print(e)
+
+result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
+databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
+print(databases_df)
