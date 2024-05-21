@@ -10,28 +10,18 @@ DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
+DB_NAME = os.getenv('DB_NAME')
 
-print(f"DB_USER: {DB_USER}")
-print(f"DB_PASSWORD: {DB_PASSWORD}")
-print(f"DB_HOST: {DB_HOST}")
-print(f"DB_PORT: {DB_PORT}")
-print(type(DB_PORT))
-
-
-conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}'
-#conn_uri1 = mysql+pymysql://remote_user:1234@192.168.129.94:3306
+conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 engine = sqlalchemy.create_engine(conn_uri)
+connection = engine.connect()
 
-#databases = pd.read_sql(sqlalchemy.text('SHOW DATABASES'), engine)
-# Use the engine's connect method to execute a query
-with engine.connect() as connection:
-    result = connection.execute(sqlalchemy.text("SHOW DATABASES"))
-    databases = result.fetchall()
-    # Convert result to DataFrame
-    databases_df = pd.DataFrame(databases, columns=result.keys())
+#result1 = connection.execute(sqlalchemy.text('CREATE DATABASE retail_db'))
 
-# Print the result
+result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
+databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
 print(databases_df)
+
 
 schema = json.load(open('data/retail_db/schemas.json'))
 
@@ -40,4 +30,12 @@ def get_column_names(schema,ds_name):
     clm_names = sorted(clm_details, key= lambda col : col['column_position'])
     return [col['column_name'] for col in clm_names]
 
-print(get_column_names(schema,'departments'))
+columns = get_column_names(schema, 'orders')
+
+df = pd.read_csv(
+    'retail_db/orders/part-00000',
+    names=columns
+)
+
+print(df)
+#print(get_column_names(schema,'departments'))
