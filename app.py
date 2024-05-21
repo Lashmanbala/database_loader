@@ -13,8 +13,8 @@ DB_PORT = os.getenv('DB_PORT')
 DB_NAME = os.getenv('DB_NAME')
 
 conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
-engine = sqlalchemy.create_engine(conn_uri)
-connection = engine.connect()
+db_conn_engine = sqlalchemy.create_engine(conn_uri)
+connection = db_conn_engine.connect()
 
 #result1 = connection.execute(sqlalchemy.text('CREATE DATABASE retail_db'))
 
@@ -34,22 +34,19 @@ df_reader = pd.read_csv(
     chunksize=10000
 )
 
-for idx, df in enumerate(df_reader):
-    print(f'chunk size of chunk {idx} is {df.shape}')
-
-
-'''try:
-    df.to_sql(
-        'orders',
-        con=engine, 
-        if_exists='replace', 
-        index=False        # df has indecx in it. It shd be set to false. otherwise index'll be inserted as a column
-    )
-    print('succesfully created a table')
+try:
+    for idx, df in enumerate(df_reader):
+        print(f'chunk size of chunk {idx} is {df.shape}')
+        df.to_sql(
+            'orders',
+            db_conn_engine, 
+            if_exists='append', 
+            index=False        # df has indecx in it. It shd be set to false. otherwise index'll be inserted as a column
+        )
+        print('succesfully created a table')
 except Exception as e:
     print(e)
 
 result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
 databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
 print(databases_df)
-'''
