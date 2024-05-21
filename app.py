@@ -28,14 +28,17 @@ def get_column_names(schema,ds_name):
 
 columns = get_column_names(schema, 'orders')
 
-df = pd.read_csv(
+df_reader = pd.read_csv(
     'data/retail_db/orders/part-00000',
-    names=columns
+    names=columns,
+    chunksize=10000
 )
 
-print(df)
+for idx, df in enumerate(df_reader):
+    print(f'chunk size of chunk {idx} is {df.shape}')
 
-try:
+
+'''try:
     df.to_sql(
         'orders',
         con=engine, 
@@ -49,3 +52,4 @@ except Exception as e:
 result2 = connection.execute(sqlalchemy.text('SHOW TABLES'))
 databases_df = pd.DataFrame(result2.fetchall(), columns=result2.keys())
 print(databases_df)
+'''
