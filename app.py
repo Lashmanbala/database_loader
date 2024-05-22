@@ -5,15 +5,6 @@ import sqlalchemy
 import json
 import glob
 
-dotenv.load_dotenv()
-
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_HOST = os.getenv('DB_HOST')
-DB_PORT = os.getenv('DB_PORT')
-DB_NAME = os.getenv('DB_NAME')
-
-
 def get_column_names(schema,ds_name):
     clm_details = schema[ds_name]
     clm_names = sorted(clm_details, key= lambda col : col['column_position'])
@@ -32,11 +23,8 @@ def to_sql(df, db_conn_engine, ds_name):
               if_exists='append', 
               index=False)
 
-def db_loader(ds_name, schema):
-    files = glob.glob(f'data/retail_db/{ds_name}/part-*')
-
-    conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
-    db_conn_engine = sqlalchemy.create_engine(conn_uri)
+def db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR):
+    files = glob.glob(f'{SRC_BASE_DIR}/{ds_name}/part-*')
     for file in files:
         df_reader = read_csv(file, schema)
 
@@ -45,12 +33,24 @@ def db_loader(ds_name, schema):
             to_sql(df, db_conn_engine, ds_name)
 
 def process_files(ds_names=None):
-    schema = json.load(open('data/retail_db/schemas.json'))
+    dotenv.load_dotenv()
+
+    DB_USER = os.getenv('DB_USER')
+    DB_PASSWORD = os.getenv('DB_PASSWORD')
+    DB_HOST = os.getenv('DB_HOST')
+    DB_PORT = os.getenv('DB_PORT')
+    DB_NAME = os.getenv('DB_NAME')
+    SRC_BASE_DIR = os.getenv('SRC_BASE_DIR')
+
+    conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+    db_conn_engine = sqlalchemy.create_engine(conn_uri)
+
+    schema = json.load(open(f'{SRC_BASE_DIR}/schemas.json'))
 
     if not ds_names:
         ds_names = schema.keys()
         for ds_name in ds_names:
-            db_loader(ds_name, schema)
+            db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
 
 
 process_files()
