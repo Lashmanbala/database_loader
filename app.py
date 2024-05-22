@@ -22,7 +22,7 @@ def get_column_names(schema,ds_name):
 def read_csv(file, schema):
     file_path_list = file.split('/')
     ds_name = file_path_list[-2]
-    columns =get_column_names(schema, ds_name)
+    columns = get_column_names(schema, ds_name)
     df_reader = pd.read_csv(file,names=columns,chunksize=10000)
     return df_reader
 
@@ -32,8 +32,7 @@ def to_sql(df, db_conn_engine, ds_name):
               if_exists='append', 
               index=False)
 
-def db_loader(ds_name):
-    schema = json.load(open('data/retail_db/schemas.json'))
+def db_loader(ds_name, schema):
     files = glob.glob(f'data/retail_db/{ds_name}/part-*')
 
     conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
@@ -45,7 +44,17 @@ def db_loader(ds_name):
             print(f'processing chunk {idx} of {ds_name}')
             to_sql(df, db_conn_engine, ds_name)
 
-db_loader('orders')
+def process_files(ds_names=None):
+    schema = json.load(open('data/retail_db/schemas.json'))
+
+    if not ds_names:
+        ds_names = schema.keys()
+        for ds_name in ds_names:
+            db_loader(ds_name, schema)
+
+
+process_files()
+
 
 '''conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 db_conn_engine = sqlalchemy.create_engine(conn_uri)
