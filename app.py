@@ -5,6 +5,8 @@ import sqlalchemy
 import json
 import glob
 import sys
+from multiprocessing import Pool, cpu_count
+import time
 
 def get_column_names(schema,ds_name):
     clm_details = schema[ds_name]
@@ -26,7 +28,7 @@ def to_sql(df, db_conn_engine, ds_name):
 
 def db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR):
     files = glob.glob(f'{SRC_BASE_DIR}/{ds_name}/part-*')
-
+    
     if len(files) == 0:
         raise NameError(f'No files found for {ds_name}')
     
@@ -36,6 +38,25 @@ def db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR):
         for idx, df in enumerate(df_reader):
             print(f'processing chunk {idx} of {ds_name}')
             to_sql(df, db_conn_engine, ds_name)
+
+def process_single_file(args):
+    ds_name = args[0]
+    schema = args[1]
+    conn_uri = args[2]
+    SRC_BASE_DIR = args[3]
+    db_conn_engine = sqlalchemy.create_engine(conn_uri)
+
+    try:
+        print(f'processing {ds_name}')
+        db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
+    except NameError as ne:
+        print(ne)
+        pass
+    except Exception as e:
+        print(e)
+    finally:
+        print(f'completed processing {ds_name}')
+
 
 def process_files(ds_names=None):
     dotenv.load_dotenv()
@@ -48,23 +69,28 @@ def process_files(ds_names=None):
     SRC_BASE_DIR = os.getenv('SRC_BASE_DIR')
 
     conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
-    db_conn_engine = sqlalchemy.create_engine(conn_uri)
 
     schema = json.load(open(f'{SRC_BASE_DIR}/schemas.json'))
 
     if not ds_names:
         ds_names = schema.keys()
+    
+    #start_time = time.time()
+    #print(start_time)
 
+    n_of_workers = min(len(ds_names), cpu_count())
+    pool = Pool(n_of_workers)
+
+    process_single_file_args = []
     for ds_name in ds_names:
-        try:
-            print(f'processing {ds_name}')
-            db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
-        except NameError as ne:
-            print(ne)
-        except Exception as e:
-            print(e)
-        finally:
-            print(f'complted processing {ds_name}')
+        process_single_file_args.append((ds_name, schema, conn_uri, SRC_BASE_DIR)) # arguments for pool.map should be a tuple
+
+    pool.map(process_single_file, process_single_file_args)
+    
+    #end_time = time.time()
+    #print(end_time)
+    #total_time = end_time - start_time
+    #print(total_time)
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
