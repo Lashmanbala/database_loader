@@ -61,6 +61,10 @@ def process_files(ds_names=None):
             db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
         except NameError as ne:
             print(ne)
+        except Exception as e:
+            print(e)
+        finally:
+            print(f'complted processing {ds_name}')
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
