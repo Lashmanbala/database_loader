@@ -4,6 +4,7 @@ import dotenv
 import sqlalchemy
 import json
 import glob
+import sys
 
 def get_column_names(schema,ds_name):
     clm_details = schema[ds_name]
@@ -25,6 +26,10 @@ def to_sql(df, db_conn_engine, ds_name):
 
 def db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR):
     files = glob.glob(f'{SRC_BASE_DIR}/{ds_name}/part-*')
+
+    if len(files) == 0:
+        raise NameError(f'No files found for {ds_name}')
+    
     for file in files:
         df_reader = read_csv(file, schema)
 
@@ -49,11 +54,19 @@ def process_files(ds_names=None):
 
     if not ds_names:
         ds_names = schema.keys()
-        for ds_name in ds_names:
-            db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
+    for ds_name in ds_names:
+        print(f'processing {ds_name}')
+        db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
 
-
-process_files()
+if __name__ == '__main__':
+    if len(sys.argv) == 2:
+        print(sys.argv[1])
+        ds_names = json.loads(sys.argv[1]) # argv returns a list with the filename and arguments as its elements.
+                                            # run time args should be in json array format. 
+                                            # Ex:'["categories", "products"]'  Ex: "[\"categories\",\"product\",\"departments\"]"
+        process_files(ds_names)
+    else:
+        process_files()
 
 
 '''conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
