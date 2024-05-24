@@ -54,9 +54,13 @@ def process_files(ds_names=None):
 
     if not ds_names:
         ds_names = schema.keys()
+
     for ds_name in ds_names:
-        print(f'processing {ds_name}')
-        db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
+        try:
+            print(f'processing {ds_name}')
+            db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
+        except NameError as ne:
+            print(ne)
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
