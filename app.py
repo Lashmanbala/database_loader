@@ -20,47 +20,40 @@ def read_csv(file, schema):
     df_reader = pd.read_csv(file,names=columns,chunksize=10000)
     return df_reader
 
-def to_sql(df, db_conn_engine, ds_name):
+def to_sql(args):
+    df, conn_uri, ds_name = args
+    db_conn_engine = sqlalchemy.create_engine(conn_uri)
+
     df.to_sql(ds_name, 
               db_conn_engine, 
               if_exists='append', 
               index=False)
 
-def db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR):
+def db_loader(ds_name, schema, conn_uri, SRC_BASE_DIR):
     files = glob.glob(f'{SRC_BASE_DIR}/{ds_name}/part-*')
-    
     if len(files) == 0:
         raise NameError(f'No files found for {ds_name}')
-    
+
     for file in files:
         df_reader = read_csv(file, schema)
+        
+        df_chunks = list(df_reader)
+        n_of_workers = min(len(df_chunks), cpu_count())
+        pool = Pool(n_of_workers)
 
-        for idx, df in enumerate(df_reader):
-            print(f'processing chunk {idx} of {ds_name}')
-            to_sql(df, db_conn_engine, ds_name)
-
-def process_single_file(args):
-    ds_name = args[0]
-    schema = args[1]
-    conn_uri = args[2]
-    SRC_BASE_DIR = args[3]
-    db_conn_engine = sqlalchemy.create_engine(conn_uri)
-
-    try:
-        print(f'processing {ds_name}')
-        db_loader(ds_name, schema, db_conn_engine, SRC_BASE_DIR)
-    except NameError as ne:
-        print(ne)
-        pass
-    except Exception as e:
-        print(e)
-    finally:
-        print(f'completed processing {ds_name}')
+        try:
+            to_sql_args = []
+            for idx, df in enumerate(df_chunks):
+                print(f'processing chunk {idx} of {ds_name}')
+                to_sql_args.append((df, conn_uri, ds_name))
+            pool.map(to_sql, to_sql_args)  # Distribute tasks
+        finally:
+            pool.close()  # Prevent any more tasks from being submitted
+            pool.join()  # Wait for the worker processes to finish
 
 
 def process_files(ds_names=None):
     dotenv.load_dotenv()
-
     DB_USER = os.getenv('DB_USER')
     DB_PASSWORD = os.getenv('DB_PASSWORD')
     DB_HOST = os.getenv('DB_HOST')
@@ -69,28 +62,28 @@ def process_files(ds_names=None):
     SRC_BASE_DIR = os.getenv('SRC_BASE_DIR')
 
     conn_uri = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
-
     schema = json.load(open(f'{SRC_BASE_DIR}/schemas.json'))
 
     if not ds_names:
         ds_names = schema.keys()
-    
-    #start_time = time.time()
-    #print(start_time)
 
-    n_of_workers = min(len(ds_names), cpu_count())
-    pool = Pool(n_of_workers)
-
-    process_single_file_args = []
+    start_time = time.time()
+    print(start_time)      
     for ds_name in ds_names:
-        process_single_file_args.append((ds_name, schema, conn_uri, SRC_BASE_DIR)) # arguments for pool.map should be a tuple
+        try:
+            print(f'processing {ds_name}')
+            db_loader(ds_name, schema, conn_uri, SRC_BASE_DIR)
+        except NameError as ne:
+            print(ne)
+        except Exception as e:
+            print(e)
+        finally:
+            print(f'complted processing {ds_name}')
 
-    pool.map(process_single_file, process_single_file_args)
-    
-    #end_time = time.time()
-    #print(end_time)
-    #total_time = end_time - start_time
-    #print(total_time)
+    end_time = time.time()
+    print(end_time)
+    total_time = end_time - start_time
+    print(total_time)
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
